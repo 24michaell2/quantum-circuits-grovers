@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quantum Computation · Complexity Theory 455</title>
+<meta name="description" content="An undergraduate complexity theory project on quantum circuits and Grover search.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.1/dist/katex.min.css" integrity="sha384-WwGtaC6ywCHxA5cstpj/3+xIZvTez8dq2IcBQaXRkenHZ7FVVq1ZROtURwfbtTlG" crossorigin="anonymous">
+<link rel="stylesheet" href="style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.19.1/dist/katex.min.js" integrity="sha384-a1WQdjRj162i159OYq041X6I4K8NenkrI09LlPmiHg0YOb7CR+wJOraXwK9abpnE" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.19.1/dist/contrib/auto-render.min.js" integrity="sha384-bjyGPfbij8/NDKJhSGZNP/khQVgtHUE5exjm4Ydllo42FwIgYsdLO2lXGmRBf5Mz" crossorigin="anonymous" onload="renderMathInElement(document.querySelector('.reading'));" ></script>
+<script src="lab.js" defer></script>
+</head>
+<body id="top">
+<a class="skip" href="#main">Skip to content</a>
+<header class="mast"><div class="shell topbar"><a href="#top" class="brand">◈ &nbsp; COMPLEXITY THEORY / 455</a><a href="#references">References</a></div></header>
+<main id="main">
+<div class="hero">
+<div class="shell intro">
+<div><h1>Quantum<br>Computation<span>.</span></h1><p class="subtitle">Quantum circuits and Grover’s algorithm</p><a class="button" href="#overview">Explore the contents</a></div>
+<div class="diagram" role="img" aria-label="Two-qubit circuit. A Hadamard gate on the first qubit followed by a controlled NOT from the first qubit to the second.">
+<div class="wire upper"><span>│0⟩</span><b>H</b><i></i></div>
+<div class="wire lower"><span>│0⟩</span><strong>⊕</strong></div>
+</div>
+</div>
+</div>
+<div class="shell layout">
+<nav class="contents" aria-label="Contents">
+<p class="eyebrow">CONTENTS</p>
+<a href="#overview">Overview</a>
+<a href="#circuits">Quantum circuits</a>
+<a href="#search">The Unstructured Search Problem</a>
+<a href="#proof">Grover’s theorem</a>
+<a href="#lab">Grover simulator</a>
+<a href="#applications">Applications</a>
+<a href="#references">References</a>
+</nav>
+<div class="reading">
+<section id="overview"><h2>Overview</h2>
+<h3>Context and Prerequisites</h3><p class="slot">In lectures thus far, we've gone over deterministic, nondeterministic, and probabilistic complexities as well as boolean circuits. On this page now, we will introduce yet another type of machine with new operations -- the quantum machine and quantum circuits, which opens up lots of interesting applications and solves many interesting problems. </p>
+    
+    <p class="slot">Additionally, in 15-251, we had a brief introduction to quantum compuatation, and in particular, we presented Grover's Theorem, claiming that "There is a \(O((\sqrt{2})^n \cdot S)\)-time quantum algorithm for solving \(\text{CIRCUIT-SAT}\) on \(n\)-input, \(S\)-line circuits" (251 textbook). To this end, also be presenting the Unstructured Search problem and Grover's (quantum) Algorithm for solving it efficiently before connecting it back to \(\text{CIRCUIT-SAT}\).</p>
+
+    <p class="slot">Other prerequisites include linear algebra (especially matrix multiplication) and probability. </p>
+</section>
+<section id="circuits"><h2>Quantum circuits</h2>
+<h3 id="qubits">Qubits (single bit)</h3><p class="slot">A qubit is a new data type with two computational basic states, \(|0\rangle = \begin{pmatrix}1\\0\end{pmatrix}\) and \(|1\rangle = \begin{pmatrix}0\\1\end{pmatrix}\). Its states can be written as \(\alpha|0\rangle + \beta|1\rangle\) where \(|\alpha|^2 + |\beta|^2 = 1\). This representation means that measuring this returns \(0\) with probability \(|\alpha|^2\) and \(1\) with probability \(|\beta|^2\). \(\alpha\) and \(\beta\) are defined as the amplitudes. For example, the state \(\frac12|0\rangle + \frac{\sqrt3}{2}|1\rangle\) when measured would have \[\Pr(\text{outcome is }0) = \frac14\text{ and }\Pr(\text{outcome is }1) = \frac34.\] \(Note\): In 251, these amplitudes did not have the restriction of summing to 1 and probabilities were instead computed by dividing by the total sum of squared amplitudes, but we will assume they do for simplicity since the amplitudes sum to 1 as they can be scaled without changing anything else.</p>
+<p class="slot">We additionally denote two useful states called the plus state and minus state, defined as follows: \(|+\rangle = \frac1{\sqrt2} |0\rangle + \frac1{\sqrt2}|1\rangle\) (plus state) and \(|-\rangle = \frac1{\sqrt2}|0\rangle - \frac1{\sqrt2}|1\rangle\) (minus state). These are notable in that in both, we have the property that \[\Pr(\text{outcome is }0) = \Pr(\text{outcome is }1) = \frac12\]</p>
+<h3 id="registers">Registers</h3><p class="slot">A standard (non-qubit) \(n\)-bit register has \(2^n\) possible strings. To extend the above idea of a qubit state to a multi-bit register, we can think of a state as \[\sum_{x\in \{0,1\}^n} a_x|x\rangle\] where \(\sum_{x\in \{0,1\}^n} |a_x|^2 = 1\) (the \(a_x\)'s are the amplitudes). Intuitively, measuring the whole register then returns the string \(x\) with probability \(|a_x|^2\). A basic states such as \(|01\rangle\) is short for \(|0\rangle\otimes|1\rangle\), where \(\otimes\) is the tensor product and joins the two qubits into one register. Notice that the number of amplitudes grows exponentially vs. the number of bits, so the state vector representation size also grows exponentially.</p>
+<h3 id="gates">Unitary gates</h3><p class="slot">Unitary gates (or unitary operations) are operations performed on qubits. They are represented by a square matrix whose inverse is its own conjugate transpose. i.e. \(U\overline{U^T} = I\). \(\overline{U_T}\) is commonly denoted as \(U^\dagger\). This ensures that they preserve the total probability of a quantum state and are reversible, so a unitary gate \(U\) can be undone by performing \(U^\dagger\). Also note that gates act linearly, so we can work out what happens to each basic state and then combine the results using their amplitudes.</p>
+<h3 id="gates">Unitary operation examples</h3><p class="slot">The following are a few examples of unitary operations, some of which will be particularly helpful in Grover's Theorem.</p>
+<ol class="sec-list">
+<li><strong>Hadamard (\(H\)): </strong>The matrix for the Hadamard operation is given by \(H = \begin{pmatrix}\frac1{\sqrt2}&\frac1{\sqrt2}\\\frac1{\sqrt2}&-\frac1{\sqrt2}\end{pmatrix}\). Most notably, Hadamard maps \(|0\rangle\) to \(|+\rangle\) and \(|1\rangle\) to \(|-\rangle\). Hadamard is its own inverse. </li>
+<li><strong>Pauli gates (\(I,X,Y,Z\)): </strong>The matrices for the Pauli gates are given by \(I = \begin{pmatrix}1&0\\0&1\end{pmatrix}\), \(X = \begin{pmatrix}0&1\\1&0\end{pmatrix}\), \(Y= \begin{pmatrix}0&-i\\i&0\end{pmatrix}\), and \(Z = \begin{pmatrix}1&0\\0&-1\end{pmatrix}\). In words, \(I\) is the identity and does not change anything; \(X\) swaps \(|0\rangle\) and \(|1\rangle\) (also called a bitflip or a NOT); \(Z\) multiplies only \(|1\rangle\) by \(-1\); and \(Y\) sends \(|0\rangle\) to \(i|1\rangle\) and \(|1\rangle\) to \(-i|0\rangle\), essentially combining a swap and a phase change. All of these gates are their own inverses. </li>
+<li><strong>Controlled NOT (CNOT): </strong>The first qubit is the control and the second is the target. Applied to \(|a,b\rangle\), it gives \(|a,b\oplus a\rangle\), where \(\oplus\) is an XOR. For example, \(|10\rangle\) becomes \(|11\rangle\), and \(|01\rangle\) stays the same. The matrix is given by \(\mathrm{CNOT}=\begin{pmatrix}1 & 0 & 0 & 0\\
+0 & 1 & 0 & 0\\
+0 & 0 & 0 & 1\\
+0 & 0 & 1 & 0
+\end{pmatrix}\). CNOT is also its own inverse. Also note that CNOT requires two qubits.</li>
+<li><strong>Diffusion (\(D\)): </strong>This operation is used on the whole register. For a \(n\)-bit register, if we let \(N=2^n\), the \(D\) matrix would be \(N\times N\) with \(D_{i,j} = 2/N - 1\) if \(i=j\) (if on the diagonal) and \(D_{i,j} = 2/N\) otherwise. In words, we can think of it like finding the average amplitude of all qubits \(a\) and then replacing each amplitude \(a_x\) with \(2a-a_x\). Note that if we trace a diffusion gate over a single-qubit register, we can see that it is equivalent to \(X\). </li>
+<p>You may also see the diffusion matrix written as \(D=WRW\), particularly in the original Grover's algorithm paper. Here \(R\) is the rotation matrix and \(W\) is a matrix known as the Walsh-Hadamard Transform Matrix. Feel free to look up this matrix if interested!</p>
+<li><strong>Phase query (\(Z_f\)): </strong>This operation will also be an important part of Grover's algorithm. However, it makes use of a function that we have yet to go over, so we will go over this again later. </li>
+</ol>
+<h3 id="gates">Boolean circuits and quantum circuits</h3><p class="slot">To build up to the concept of a quantum circuit, first note what we already know about boolean circuits. A Boolean circuit connects gates like AND and NOT to compute some output based on input bits. The wires carry bits from the inputs through the gates to the output. A quantum circuit follows the same idea, with wires that carry qubits and gates that transform their joint state. A gate can act on one qubit, like Hadamard, or on several, like CNOT. Each gate can be viewed as a simple matrix multiplication, so quantum circuits follow the same rules as matrix multiplication.</p> 
+<h3>Worked circuit: </h3><p class="slot">As an example, take a look at the circuit on this page's banner (in this circuit, the \(H\) is a Hadamard gate and the \(\oplus\) is a CNOT gate) and see if you can figure out what it does before reading on. The wires carry the qubits and both start at \(|0\rangle\); The Hadamard gate on the first wire turns the first qubit to \(|+\rangle\); And the CNOT flips the second bit on each term if their first bit is \(1\). Mathematically, we get \[|00\rangle \to \frac{|00\rangle+|10\rangle}{\sqrt2} \to \frac{|00\rangle+|11\rangle}{\sqrt2}.\]So upon measuring, the output is \(|00\rangle\) with probability \(1/2\) and \(|11\rangle\) with probability \(1/2\).</p>
+<h3>Quantum algorithms</h3><p class="slot">A quantum algorithm/machine is now defined similarly to deterministic machines in relation to boolean circuits: A quantum algorithm is a family of quantum circuits, one for each input length. And to run the algorithm on an input string, load the string as qubits and apply the corresponding circuit's gates before measuring the output's qubits to get a final output. Notice that this means that usually quantum algorithms will not be deterministic, and are instead usually probabilistic. This leads us to a new complexity class of languages defined below.</p>
+<h3>BPP vs. BQP</h3><p class="slot">As we know from probabilistic time complexity, BPP is the set of languages solvable in randomized polynomial time with error at most \(1/3\). We now define BQP as the set of languages solvable in \(quantum\) polynomial time with error at most 1/3. In set notation, \[BQP = \{L \mid \exists\text{quantum poly-time machine }M\text{ such that }M\text{ solves }L\text{ with error at most }1/3\}.\] Because every probabilistic machine can be simulated with a quantum machine (can you think of how?), we have that \(BPP \subseteq BQP\). However, whether or not \(BPP = BQP\) is still an open problem!</p>
+</section>
+<section id="search"><h2>The Unstructured Search Problem</h2>
+<h3 id="oracle">Intuitive problem description</h3><p class="slot">Imagine we have 8 slots labeled 000, 001, ..., 111 and are given that exactly one slot is correct. We are able to query each slot and ask whether that slot is correct, and our output is the three-bit binary string corresponding to the correct slot. The search is "unstructured" because the labels give you no outside information. If we query 101 and find out it is not correct, we can rule out 101, but you learn nothing about whether the correct slot is above or below 101. This is why we cannot simply binary search.</p>
+<h3>A (more) formal definition for the problem description</h3><p class="slot">Suppose we had a function \(f:\{0,1\}^n\to \{0,1\}\) which can be computed in constant time and outputs \(f(x) = 1\) for exactly one \(x\in \{0,1\}^n\). The goal of the problem is to output that string \(x\) such that \(f(x) = 1\) out of the \(N = 2^n\) candidates.</p>
+<h3>A naive solution</h3><p class="slot">One instant solution to the problem would be to search each of the \(N=2^n\) slots one-by-one. Because there are \(N\) slots to check, this will perform \(O(N) = O(2^n)\) queries. Additionally, if we add randomness to this solution by choosing slots at random until a stopping point, if we want our algorithm to be correct most of hte time, it would still need to check linearly many slots since it needs to eliminate more than half of the \(N\) possibilities, so still \(O(N)\). Our goal is to use quantum computation to solve this problem with high probability in asymptotically less queries. </p>
+
+</section>
+<section id="proof"><h2>Grover’s theorem</h2>
+<div class="theorem"><h3>Theorem statement and assumptions</h3><p class="slot">For input length of \(n\), meaning \(N=2^n\) total candidates, there is a quantum algorithm that solves the unstructured search problem with probability at least \(2/3\) using \(O(\sqrt N)\) queries</p></div>
+<h3>Phase query gates (\(Z_f\)): </h3><p class="slot">As mentioned earlier, we will be using operations called phase queries. Now that we have defined function \(f\) in the context of this problem, we can define what these operations are. A phase query takes in the input register and flips the sign of the amplitude of every string that is marked correct based on the given function \(f\). Formally, the rule is given by \[Z_f|x\rangle = (-1)^{f(x)}|x\rangle.\]Unwrapping this, if \(|x\rangle\) is not correct (so \(f(x) = 0\)), then the phase query multiplies by \(1\), and if \(|x\rangle\) is marked correct by \(f\), then the phase query would multiply by \(-1\) and flip it. Now, we are ready to look into Grover's algorithm. </p>
+<h3>Grover's Algorithm</h3>
+<ol class="sec-list">
+<li>Start with \(n\) qubits in \(|0^n\rangle\) and apply a Hadamard gate to each one. Every string now has amplitude \(\frac1{\sqrt N}\).</li>
+<li>Set \(\theta=\arcsin(\frac1{\sqrt N})\) and choose the nearest integer \(t\) to \(\frac{\pi}{4\theta}-\frac12\). This variable depends only on the number of candidates \(N\).</li>
+<li>Repeat for \(t\) iterations: In each iteration, first use the phase query to flip the sign of the marked amplitude. Then apply diffusion to the result.</li>
+<li>At the end, measure all \(n\) qubits and return the resulting string.</li>
+</ol>
+<h3>Lemma 1 - The invariant two-dimensional subspace</h3><p class="slot"><strong>Claim: </strong>At every iteration, we only need two numbers to describe the state: the amplitude of the correct string and the common amplitude of the non-correct strings.</p>
+<p class="slot"><strong>Proof: </strong>Before all the iterations, the initial Hadamard gives each qubit the same amplitude of \(\frac1{\sqrt N}\). Then, in each iteration, the phase query only flips the correct string while leaving the rest alone. Keeping the non-correct strings' amplitudes equal. Next, the diffusion does the same update to each of the non-correct strings since the average amplitude \(a\) will be equal for all and their individual amplitudes \(a_x\) will also be equal, thus also maintaining the non-correct strings' amplitudes' equal-ness. Therefore, because there is one correct string amplitude and the non-correct strings will always have equal amplitudes, to determine the state, you only need those two amplitudes.</p>
+
+<p class="slot">Define \(a\) as the amplitude of the correct string and \(b\) as the number such that each non-correct string individually has \(\frac b{\sqrt{N-1}}\) amplitude. We are able to simplify any state to just these two values by lemma 1. Additionally say that \(\sin\theta = \frac 1{\sqrt N}\) and thus \(\cos\theta = \sqrt{(N-1)/N}\), meaning that initially, \(a = \sin\theta\) and \(b = \cos\theta\). Then, consider the following lemma:</p>
+
+<h3>Lemma 2 - Oracle and diffusion as reflections</h3><p class="slot"><strong>Claim: </strong>If \(a=\sin\phi\) and \(b=\cos\phi\), then after one phase query and one diffusion step, they become \(\sin(\phi+2\theta)\) and \(\cos(\phi+2\theta)\), respectively.</p>
+<p class="slot"><strong>Proof: </strong>Within an iteration, the phase query step simply flips \(a\) to \(-a\). Then, on the diffusion step, the average amplitude is then \((-a + \sqrt{N-1}b)/N\), so after some algebra, the diffusion would obtain \[a^\prime = (1-\frac2N)a + \frac{2\sqrt{N-1}}Nb\]and \[\frac{b^\prime}{\sqrt{N-1}} = 2(-a+\sqrt{N-1}b)/N - \frac b{\sqrt{N-1}}\] \[\implies b^\prime = -\frac{2\sqrt{N-1}}Na + (1-2/N)b.\]Since \(\sin\theta = \frac1{\sqrt N}\), these coefficients are \(\cos(2\theta)\) and \(\sin(2\theta)\). Using that \(a=\sin\phi\) and \(b=\cos\phi\) and angle addition, we get the desired coefficients for this lemma.</p>
+
+
+<h3>Lemma 3 - Rotation and success probability</h3><p class="slot"><strong>Claim.</strong> After \(t\) iterations, the probability of measuring the correct string is \(\sin^2((2k+1)\theta)\).</p>
+<p class="slot"><strong>Proof: </strong>The correct string initially has amplitude \(\sin\theta\), and by lemma 2, after each iteration, the amplitude's angle increases by \(2\theta\). This means that after \(t\) iterations, the correct string's amplitude is \(\sin((2t+1)\theta)\). The probability that this string is measured is then the square of this expression, as desired. </p>
+
+<h3>Putting it all together</h3><p class="slot">Because we have that \(a\) and \(b\) are initially \(1/\sqrt N = \sin\theta\) and \(\sqrt{(N-1)/N} = \cos\theta\), respectively, by lemma 2 and lemma 3, we have that by the end of Grover's algorithm, our probability of measuring the correct string (our probability of success) is \(\sin^2((2t+1)\theta)\). Because \(t\) is chosen to be the closest integer to \(\frac{\pi}{4\theta}-\frac12\) and \(\sin^2((2(\frac{\pi}{4\theta}-\frac12)+1)\theta) = \sin^2(\pi/2) = 1\), we can intuitively deduce that that our probability of success is at least \(2/3\). If you are interested in seeing a more formal proof of this fact, check out the papers in the references section. Finally, because we know that \(\theta=\arcsin(1/\sqrt N)\ge 1/\sqrt N\), the algorithm will do \(O(\sqrt N)\) iterations to solve the problem, as desired.</p>
+
+<h3>Note: This algorithm assumed that the input had exactly one correct string/slot, but it is extendible to a general case (any number of correct strings). See if you can figure this extension out as an exercise! Hint: Does lemma 1 still hold when there is a non-one number of correct strings?</h3>
+</section>
+<section id="lab"><h2>Grover simulator</h2>
+<p class="slot">Try out Grover's algorithm for yourself here!</p>
+<div class="lab">
+<div class="controls">
+<label>Search space <select id="size"><option>4</option><option selected>8</option><option>16</option><option>32</option></select></label>
+<label>Marked index <select id="target"></select></label>
+<label>Display <select id="mode"><option value="amplitude">Amplitude</option><option value="probability">Probability</option></select></label>
+</div>
+<div class="actions"><button id="step" type="button">Apply oracle</button><button id="reset" type="button">Reset</button></div>
+<p id="status" role="status"></p>
+<div id="chart" class="chart" aria-hidden="true"></div>
+<details><summary>State values</summary><table><thead><tr><th scope="col">Index</th><th scope="col">Amplitude</th><th scope="col">Probability</th></tr></thead><tbody id="values"></tbody></table></details>
+</div>
+</section>
+<section id="applications"><h2>Applications and Connection to CIRCUIT-SAT</h2>
+<h3>Immediate applications</h3><p class="slot">If we zoom out of the complex algorithm for a bit and just look at what the problem solves, an algorithm solving this problem is able to search for a correct "thing" from a sea of unrelated "things". The original paper by Grover himself described it as a fast algoritm for database search. Try to come up with some other useful applications!</p>
+<h3>Connetion to CIRCUIT-SAT</h3><p class="slot">As a final note, remember that the 251 version of Grover's Theorem stated that there was a more efficient quantum algorithm for solving \(\text{CIRCUIT-SAT}\), but we didn't do anything related to CIRCUIT-SAT here, so what gives? </p>
+<p class="slot">Well, if we think about what CIRCUIT-SAT is at its core, it asks whether a Boolean circuit \(C\) outputs \(1\) on any of its \(2^n\) input strings. We can reduce this problem to the unstructured search problem by having each potential input as a slot and have function \(f\) output the same as circuit \(C\). This is the connection to CIRCUIT-SAT, and solving for the overall quantum complexity gets that Grover's solves it in \(O((\sqrt{2})^n \cdot S)\) time where \(n\) is the input length and \(S\) is the number of circuit lines line.</p>
+<section id="references"><h2>References</h2>
+<ul class="references">
+<li><a href="https://quantum.cloud.ibm.com/learning/courses/basics-of-quantum-information/quantum-circuits/introduction">John Watrous · Basics of Quantum Information</a></li>
+<li><a href="https://quantum.cloud.ibm.com/learning/en/courses/fundamentals-of-quantum-algorithms/grover-algorithm/grover-algorithm-description">John Watrous - Grover's Algorithm</a></li>
+<li><a href="https://arxiv.org/abs/quant-ph/9605043">Lov K. Grover - A Fast Quantum Mechanical Algorithm for Database Search (1996)</a></li>
+<li><a href="https://arxiv.org/abs/quant-ph/9605034">Boyer, Brassard, Hoeyer, and Tapp - Tight Bounds on Quantum Searching</a></li>
+<li><a href="https://ocw.mit.edu/courses/6-845-quantum-complexity-theory-fall-2010/pages/lecture-notes/">MIT 6.845 Quantum Complexity Theory Lecture Notes</a></li>
+<li><a href="https://www.pandanotes.org/">CMU 15-251 Great Ideas In Theoretical Computer Science Lecture Notes</a></li>
+</ul>
+</section>
+</div>
+</div>
+</main>
+<footer class="shell footer"><span>Complexity Theory 455</span><a href="#top">Back to top</a></footer>
+</body>
+</html>
